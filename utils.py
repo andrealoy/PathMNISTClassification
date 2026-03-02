@@ -1,89 +1,54 @@
-########################utils.py ######################################################################
+######################## utils.py ######################################################################
 #                                                                                                     #
 # A collection of utility functions for image dataset management, visualization, and model evaluation.#
-# Author: Rose Aupepin , Andréa Loy , Alizée Robin, Omar Zeroual                                      #  
+# Authors: Andrea Loy, Omar Zeroual                                                                   #  
 #                                                                                                     #
 #######################################################################################################
 
-# Standard library imports
-import os
-import random
-import shutil
-import hashlib
-import imghdr
-import torch
-
-
-# Data manipulation and numerical arrays
 import numpy as np
 import pandas as pd
-import seaborn as sns
-
-# Visualization
 import matplotlib.pyplot as plt
-import plotly.express as px
-
-import random
-import numpy as np
-import matplotlib.pyplot as plt
-import torch
-import cv2
-
-from torch.utils.data import Dataset
-from torchvision.datasets import ImageFolder
-from pytorch_grad_cam import GradCAM
-from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
-from pytorch_grad_cam.utils.image import show_cam_on_image
-from pathlib import Path
-from PIL import Image
-
-# Machine Learning and Deep Learning
-from sklearn.metrics import (
-    confusion_matrix, 
-    classification_report, 
-    precision_score, 
-    recall_score, 
-    f1_score
-)
-
-from typing import Union
-
-from pytorch_grad_cam import GradCAM
-from pytorch_grad_cam.utils.image import show_cam_on_image
-
 
 def display_medmnist_samples(dataset, class_filter=None, n_samples=5):
+    """
+    Displays images from a MedMNIST dataset object.
+    - class_filter: ID (int), Name (str), or None/'*' for all classes.
+    - n_samples: Number of images per displayed class.
+    """
     X = dataset.imgs
     Y = dataset.labels.flatten()
     label_dict = dataset.info['label']
     
-    # 1. Gestion du filtrage
+    # 1. Handle filtering logic
     if class_filter is None or class_filter == '*':
         target_classes = np.unique(Y)
     else:
         if isinstance(class_filter, str):
+            # Match the name in the dictionary to find the ID
             match = [int(k) for k, v in label_dict.items() if v.lower() == class_filter.lower()]
             if not match:
-                print(f"Classe '{class_filter}' non trouvée.")
+                print(f"Class '{class_filter}' not found. Available classes: {list(label_dict.values())}")
                 return
             target_classes = match
         else:
             target_classes = [class_filter]
 
     n_rows = len(target_classes)
-    # On ajuste la taille pour que les titres individuels respirent
+    # Adjust figure size for titles to breathe
     fig, axes = plt.subplots(n_rows, n_samples, figsize=(n_samples * 3, n_rows * 3.5))
     
+    # Ensure axes is a 2D array even for a single row or column
     axes = np.atleast_2d(axes)
 
-    # 3. Remplissage
+    # 3. Filling the grid
     for i, class_id in enumerate(target_classes):
         class_name = label_dict[str(class_id)]
         indices = np.where(Y == class_id)[0]
         
-        n_to_show = min(n_samples, len(indices))
-        # Sélection aléatoire
-        if n_to_show > 0:
+        n_available = len(indices)
+        n_to_show = min(n_samples, n_available)
+        
+        if n_available > 0:
             selected_idx = np.random.choice(indices, n_to_show, replace=False)
         else:
             selected_idx = []
@@ -93,14 +58,13 @@ def display_medmnist_samples(dataset, class_filter=None, n_samples=5):
             if j < len(selected_idx):
                 idx = selected_idx[j]
                 
-                # Affichage de l'image
+                # Image display (Auto-detect Grayscale or RGB)
                 ax.imshow(X[idx], cmap='gray' if X[idx].ndim == 2 else None)
                 
-                # --- AFFICHAGE DU TITRE PAR IMAGE ---
-                # On met le nom de la classe en gras et l'index en dessous
+                # Display individual title per image
                 ax.set_title(f"{class_name.upper()}\nIdx: {idx}", fontsize=9, fontweight='bold')
             
-            # On cache les axes mais on garde les titres
+            # Hide ticks but keep titles visible
             ax.set_xticks([])
             ax.set_yticks([])
             for spine in ax.spines.values():
@@ -110,38 +74,44 @@ def display_medmnist_samples(dataset, class_filter=None, n_samples=5):
     plt.show()
 
 def print_dataset_structure(dataset):
-    print(f"--- Structure du Dataset : {dataset.flag.upper()} ---")
-    print(f"Type d'objet : {type(dataset)}")
-    print(f"Nombre total d'échantillons : {len(dataset)}")
+    """
+    Prints the technical structure of the MedMNIST dataset.
+    """
+    print(f"--- Dataset Structure: {dataset.flag.upper()} ---")
+    print(f"Object Type: {type(dataset)}")
+    print(f"Total samples: {len(dataset)}")
     
-    # Dimensions des images (N, H, W) ou (N, H, W, C)
-    print(f"Format des images (shape) : {dataset.imgs.shape}")
-    print(f"Type de données (dtype) : {dataset.imgs.dtype}")
+    # Image dimensions (N, H, W) or (N, H, W, C)
+    print(f"Image format (shape): {dataset.imgs.shape}")
+    print(f"Data type (dtype): {dataset.imgs.dtype}")
     
-    # Dimensions des labels
-    print(f"Format des labels : {dataset.labels.shape}")
+    # Label dimensions
+    print(f"Label format: {dataset.labels.shape}")
     
-    # Vérifier si c'est du Gris ou de la Couleur
-    channels = "Gris" if dataset.imgs.ndim == 3 else "RGB (Couleur)"
-    print(f"Mode visuel : {channels}")
+    # Visual mode check
+    channels = "Grayscale" if dataset.imgs.ndim == 3 else "RGB (Color)"
+    print(f"Visual mode: {channels}")
 
 def show_class_distribution(dataset):
+    """
+    Displays the statistical distribution of classes in the dataset.
+    """
     labels = dataset.labels.flatten()
     label_dict = dataset.info['label']
     
-    # Compter les occurrences
+    # Count occurrences
     unique, counts = np.unique(labels, return_counts=True)
     
-    # Créer un tableau propre avec les noms de classes
+    # Create a clean table with class names
     dist = []
     for u, c in zip(unique, counts):
         dist.append({
             "ID": u,
-            "Classe": label_dict[str(u)],
-            "Nombre": c,
-            "Pourcentage": f"{(c/len(labels)*100):.2f}%"
+            "Class": label_dict[str(u)],
+            "Count": c,
+            "Percentage": f"{(c/len(labels)*100):.2f}%"
         })
     
     df = pd.DataFrame(dist)
-    print("\n--- Répartition des classes ---")
+    print("\n--- Class Distribution ---")
     print(df.to_string(index=False))
