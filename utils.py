@@ -169,7 +169,7 @@ def show_pixel_stats(dataset):
 def show_random_pixel_stats(dataset, seed=42):
     """
     Selects a random image from the dataset using a seed, 
-    displays its metadata, its visual appearance, and its color distribution.
+    displays its metadata, its visual appearance, and its color distribution per channel.
     """
     # Set the seed for reproducibility
     np.random.seed(seed)
@@ -178,16 +178,27 @@ def show_random_pixel_stats(dataset, seed=42):
     random_idx = np.random.randint(0, len(dataset.imgs))
     img = dataset.imgs[random_idx]
     
-    # Print individual statistics
     print(f"--- Stats for Image Index: {random_idx} (Seed: {seed}) ---")
-    print(f"Mean: {np.mean(img):.2f} | Std: {np.std(img):.2f} | Min: {np.min(img)} | Max: {np.max(img)}")
     print(f"Shape: {img.shape}")
+    
+    # Calcul et affichage par channel
+    if img.ndim == 3: # RGB Image
+        channels = ['Red', 'Green', 'Blue']
+        for i, color in enumerate(channels):
+            channel_data = img[:, :, i]
+            mean = np.mean(channel_data)
+            std = np.std(channel_data)
+            print(f"{color:5} Channel -> Mean: {mean:.2f} | Std: {std:.2f}")
+    else: # Grayscale
+        print(f"Grayscale -> Mean: {np.mean(img):.2f} | Std: {np.std(img):.2f}")
+    
+    # Global stats
+    print(f"Global Stats -> Min: {np.min(img)} | Max: {np.max(img)}")
 
     plt.figure(figsize=(12, 5))
     
     # 1. Visualizing the Image
     plt.subplot(1, 2, 1)
-    # If pixels are 0-255, we cast to uint8 for plt.imshow
     display_img = img.astype('uint8') if np.max(img) > 1 else img
     plt.imshow(display_img)
     plt.title(f"Image Reference: {random_idx}")
@@ -202,7 +213,7 @@ def show_random_pixel_stats(dataset, seed=42):
     else: # Grayscale Image
         plt.hist(img.ravel(), bins=256, color='gray', alpha=0.7)
         
-    plt.title("Pixel Intensity Distribution (Single Image)")
+    plt.title("Pixel Intensity Distribution per Channel")
     plt.xlabel("Intensity Value")
     plt.ylabel("Frequency")
     plt.legend()
